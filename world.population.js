@@ -11,52 +11,79 @@ var worldPopulation = {
         // World and Population details
         var spawnName = 'Nexus';
 
+        // Worker populations will be checked and spawned in on a priority basis
         var workers = [
-            { name: 'Harvester', memoryRole: 'harvester', body: [WORK,CARRY,MOVE], populationCap: '3' },
-            { name: 'Upgrader', memoryRole: 'upgrader', body: [WORK,CARRY,MOVE], populationCap: '1' }
+            { name: 'Harvester', memoryRole: 'harvester', body: [WORK,CARRY,MOVE], populationCap: 3, priority: 1 },
+            { name: 'Upgrader', memoryRole: 'upgrader', body: [WORK,CARRY,MOVE], populationCap: 1, priority: 2 }
         ]
+
+        var haltProcessing = false;
+
+        for (i = 1; i < 10; i++)
+        {
+            // For each level of priority (1-10)
+            var focus = _.filter(workers, (worker) => worker.priority == i);
+
+            if (focus.length > 0) {
+                // Priority group contains workers, let's continue
+
+                focus.forEach(worker => {
+
+                    if (Game.spawns[spawnName].spawning) {
+                        // Already spawning something, let's notify and wait
+
+                        var spawningCreep = Game.creeps[Game.spawns[spawnName].spawning.name];
         
-        // Spawn workers that are needed
-        workers.forEach(function(worker) {
-            var currentCount = _.filter(Game.creeps, (creep) => creep.memory.role == worker.memoryRole);
-
-            if (currentCount.length < worker.populationCap)
-            {
-                if (Game.spawns[spawnName].spawning) {
-                    var newSpawnName = Game.creeps[Game.spawns[spawnName].spawning.name];
-                    console.log('Waiting on new spawn ' + newSpawnName);
-                } else {
-                    var newName = worker.name + Game.time;
-
-                    if (Game.spawns[spawnName].spawnCreep(worker.body, newName, {memory: {role: worker.memoryRole}}) == ERR_NOT_ENOUGH_ENERGY) {
-                        console.log('Not enough energy to spawn ' + worker.name + ', waiting...');
-
                         Game.spawns[spawnName].room.visual.text(
-                            '🔋 Needs Energy',
+                            '🛠️' + spawningCreep.memory.role,
                             Game.spawns[spawnName].pos.x + 1,
                             Game.spawns[spawnName].pos.y,
                             {align: 'left', opacity: 0.8}
                         );
-                    } else {
-                        console.log('Current ' + worker.name + ' population (' + currentCount.length + ') does not meet quota (' + worker.populationCap + '), spawning...');
-                        console.log('Spawning new ' + worker.name + ' (' + newName + ')');
-                    }
-                }
-            } else {
-                console.log('Current ' + worker.name + ' population (' + currentCount.length + ') meets quota (' + worker.populationCap + ')');
-            }
-        });
 
-        // Show what we're spawning
-        if (Game.spawns[spawnName].spawning) {
-            var spawningCreep = Game.creeps[Game.spawns[spawnName].spawning.name];
-    
-            Game.spawns[spawnName].room.visual.text(
-                '🛠️' + spawningCreep.memory.role,
-                Game.spawns[spawnName].pos.x + 1,
-                Game.spawns[spawnName].pos.y,
-                {align: 'left', opacity: 0.8}
-            );
+                        haltProcessing = true;
+
+                    } else {
+                        // Spawn isn't currently busy, let's crack on
+
+                        var currentCount = _.filter(Game.creeps, (creep) => creep.memory.role == worker.memoryRole).length;
+                    
+                        if (currentCount < worker.populationCap) {
+                            console.log(worker.name + ' population is lower than cap, attempting spawn...');
+                            
+                            var newName = worker.name + Game.time;
+                            var spawnResponse = Game.spawns[spawnName].spawnCreep(worker.body, newName, {memory: {role: worker.memoryRole}});
+                            
+                            switch (spawnResponse) {
+                                case OK:
+                                    console.log('Started spawn process for ' + worker.name + '(' + newName + ')');
+                                    break;
+                                case ERR_INVALID_ARGS:
+                                    console.log('Requested spawn config was not correct');
+                                    break;
+                                case ERR_RCL_NOT_ENOUGH:
+                                    console.log('Spawn is not appropriate level for this request');
+                                    break;
+                                case ERR_NOT_ENOUGH_ENERGY:
+                                    console.log('Not enough energy to spawn ' + worker.name + ', waiting...');
+        
+                                    Game.spawns[spawnName].room.visual.text(
+                                        '🔋 Needs Energy',
+                                        Game.spawns[spawnName].pos.x + 1,
+                                        Game.spawns[spawnName].pos.y,
+                                        {align: 'left', opacity: 0.8}
+                                    );
+                                    break;
+                            }
+
+                            haltProcessing = true;
+                        }
+                    }
+                });
+            }
+
+            if (haltProcessing)
+                break;
         }
     }
 }
