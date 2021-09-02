@@ -7,4 +7,3 @@ Current script features:
 * Ensures Harvesters maintain the energy level of the spawn
 * Ensures Upgraders continually upgrade the controller
 
-o
